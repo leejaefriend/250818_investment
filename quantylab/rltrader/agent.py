@@ -95,12 +95,22 @@ class Agent:
 
     def validate_action(self, action):
         if action == Agent.ACTION_BUY:
-            # 적어도 1주를 살 수 있는지 확인
+            # 적어도 5000원 상당의 코인을 매수할 수 있는지 확인
             if self.balance < 5000:
                 return False
             elif action == Agent.ACTION_SELL:
-                # 코인 잔고가 있는지 확인
-                if self.
+                # 매도 가능 조건 : 보유 코인이 있고, 평가 금액이 5000원 이상
+                if self.num_coins * self.environment.get_price() < 5000:
+                    return False
+            return True
+
+    def decide_trading_unit(self, confidence):
+        if np.isnan(confidence):
+            return self.min_trading_price
+        added_trading_price = max(min(confidence * (self.max_trading_price - self.min_trading_price), self.max_trading_price - self.min_trading_price), 0)
+        trading_price = self.min_trading_price + added_trading_price
+        return trading_price / self.environment.get_price()
+
 
 
 
