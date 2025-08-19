@@ -76,4 +76,31 @@ class Agent:
         if (pred == maxpred).all():
             epsilon = 1
 
+        # 탐험 결정
+        if np.random.rand() < epsilon:
+            exploration = True
+            action = np.random.randint(self.NUM_ACTIONS)
+        else:
+            exploration = False
+            action = np.argmax(pred)
+
+        confidence = .5
+
+        if pred_policy is not None:
+            confidence = pred[action]
+        elif pred_value is not None:
+            confidence = utils.sigmoid(pred[action])
+
+        return action, confidence, exploration
+
+    def validate_action(self, action):
+        if action == Agent.ACTION_BUY:
+            # 적어도 1주를 살 수 있는지 확인
+            if self.balance < 5000:
+                return False
+            elif action == Agent.ACTION_SELL:
+                # 코인 잔고가 있는지 확인
+                if self.
+
+
 
