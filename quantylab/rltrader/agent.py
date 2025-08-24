@@ -18,14 +18,14 @@ class Agent:
     ACTIONS = [ACTION_BUY, ACTION_SELL, ACTION_HOLD]
     NUM_ACTIONS = len(ACTIONS) # 인공 신경망에서 고려할 출력값의 개수
 
-    def __init__(self, environment, initial_balance, min_trading_price, max_trading_price):
+    def __init__(self, environment, initial_balance, min_trading_budget, max_trading_budget):
         # 현재 주식 가격을 가져오기 위해 환경 참조
         self.environment = environment
         self.initial_balance = initial_balance # 초기 자본금
 
-        # 최소 단일 매매 금액, 최대 단일 매매 금액
-        self.min_trading_price = min_trading_price
-        self.max_trading_price = max_trading_price
+        # 최소/최대 1회 주문 예산(원화)
+        self.min_trading_budget = int(min_trading_budget)
+        self.max_trading_budget = int(max_trading_budget)
 
         # Agent 클래스의 속성
         self.balance = initial_balance # 현재 현금 잔고
@@ -39,7 +39,7 @@ class Agent:
 
         # Agent 클래스의 상태
         self.ratio_hold = 0 # 코인 보유 비율
-        self.profitloss = # 손익률
+        self.profitloss = 0 # 손익률
         self.avg_buy_price = 0 # 코인당 매수 단가
 
     def reset(self):
@@ -72,9 +72,9 @@ class Agent:
             epsilon = 1
         else:
             # 값이 모두 같은 경우 탐험
-        maxpred = np.max(pred)
-        if (pred == maxpred).all():
-            epsilon = 1
+            maxpred = np.max(pred)
+            if (pred == maxpred).all():
+                epsilon = 1
 
         # 탐험 결정
         if np.random.rand() < epsilon:
@@ -105,6 +105,47 @@ class Agent:
             return True
 
     def decide_trading_unit(self, confidence):
+        price = self.environment.get_price()
+        if price is None or price <= 0:
+            return 0.0
+
+        # 1) 매수 시 예산(원화) 계산
+        if action == self.ACTION_BUY:
+            if np.isnan(confidence):
+                budget = self.min_trading_budget
+            else:
+                span = max(self.max_trading_price - self.min_trading_price, 0.0)
+                added_trading_price = max(min(confidence * span, span), 0.0)  # 원(krw)
+                budget = self.min_trading_price + added_trading_price
+
+            budget = min(budget, self.balance)
+            if budget < 5000.0:
+                return 0.0
+
+            denom = price * (1.0 + self.TRADING_CHARGE)
+            units = 0.0 if denom <= 0 else (budget / denom)
+
+            # 최소 주문 수량(수수료 반영)
+            min_unit_rule = 5000.0 / denom
+            units = max(units, min_unit_rule)
+
+        # 매도 시 수량 결정
+        elif action == self.ACTION_SELL:
+            units = self.num_coins
+            # 최소 주문 금액 미만이면 매도 불가
+            if units * price < 5000.0:
+                return 0.0
+
+        3)
+
+
+        # 3) 업비트 최소 주문 5,000원 미만이면 주문하지 않음
+        if budget < 5000.0:
+            return 0.0
+
+        # 4) 수수료 반영하여 코인 수량 계산
+
+
         if np.isnan(confidence):
             return self.min_trading_price
         added_trading_price = max(min(confidence * (self.max_trading_price - self.min_trading_price), self.max_trading_price - self.min_trading_price), 0)
