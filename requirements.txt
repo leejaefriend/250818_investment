@@ -1,0 +1,8 @@
+python-dotenv>=1.0.1
+pyupbit>=0.2.33
+pandas>=2.2.2
+numpy>=1.26.4
+gymnasium>=0.29.1
+stable-baselines3>=2.3.2
+torch>=2.2.0
+pytz>=2024.1
