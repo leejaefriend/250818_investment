@@ -4,21 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="2a0d41ca-4e6e-42f7-9d4d-eaa0fbfb04e4" name="Changes" comment="250820_1215">
-      <change afterPath="$PROJECT_DIR$/upbit_exec.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/quantylab/rltrader/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/quantylab/rltrader/agent.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/quantylab/rltrader/data_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/quantylab/rltrader/environment.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/quantylab/rltrader/learners.py" beforeDir="false" afterPath="$PROJECT_DIR$/data.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/quantylab/rltrader/networks/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/env_tradig.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/quantylab/rltrader/networks/networks_keras.py" beforeDir="false" afterPath="$PROJECT_DIR$/model_io.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/quantylab/rltrader/networks/networks_pytorch.py" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/quantylab/rltrader/settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/scheduler.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/quantylab/rltrader/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/trade_hourly.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/quantylab/rltrader/visualizer.py" beforeDir="false" afterPath="$PROJECT_DIR$/train.py" afterDir="false" />
-    </list>
+    <list default="true" id="2a0d41ca-4e6e-42f7-9d4d-eaa0fbfb04e4" name="Changes" comment="250824_1442" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -121,7 +107,15 @@
       <option name="project" value="LOCAL" />
       <updated>1755659723518</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00007" summary="250824_1442">
+      <option name="closed" value="true" />
+      <created>1756014164565</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1756014164565</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -129,6 +123,7 @@
     <MESSAGE value="250819_0000" />
     <MESSAGE value="250819_1223" />
     <MESSAGE value="250820_1215" />
-    <option name="LAST_COMMIT_MESSAGE" value="250820_1215" />
+    <MESSAGE value="250824_1442" />
+    <option name="LAST_COMMIT_MESSAGE" value="250824_1442" />
   </component>
 </project>
