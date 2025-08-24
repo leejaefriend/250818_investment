@@ -1,19 +1,29 @@
+from __future__ import annotations
+
 import numpy as np
 
 from config import TICKER, INTERVAL, MODEL_PATH
 from data import load_ohlcv, make_features
 from model_io import load_model
 from upbit_exec import UpbitExec
-from scheduler import sleep_until_next_minute
+from scheduler import sleep_until_next_bar
 
 
 def last_obs(exec_: UpbitExec):
-    raw = load_ohlcv(TICKER, INTERVAL, count=60 + 25)
+    """
+    최신 캔들로부터 상태 벡터 구성.
+    minute1에서도 과거 데이터 창을 충분히 확보하도록 count를 넉넉히 요청.
+    """
+    # 분봉일 경우 최소 200~300개 캔들은 확보
+    count = 180 if INTERVAL.lower().startswith("minute") else 120
+    raw = load_ohlcv(TICKER, INTERVAL, count=count + 25)
     feats = make_features(raw)
     price = float(feats["close"].iloc[-1])
+
     krw, coin = exec_.balances()
     value = float(krw) + float(coin) * price + 1e-9
     cash_ratio = float(krw) / value
+
     x = feats[["ret1", "ret3", "ret6", "vol_z", "ma_diff"]].iloc[-1].values.astype(np.float32)
     obs = np.concatenate([x, np.array([cash_ratio, 1.0 - cash_ratio], dtype=np.float32)], axis=0).reshape(1, -1)
     return obs
@@ -47,9 +57,9 @@ def main(loop=True):
     ex = UpbitExec()
     print(f"MODE={ex.mode}  TICKER={TICKER}  INTERVAL={INTERVAL}")
     while True:
-        # 정각까지 대기
-        target = sleep_until_next_minute()
-        print(f"== {target.isoformat()} 정각 실행 ==")
+        # INTERVAL에 따라 다음 캔들 시각까지 대기
+        target = sleep_until_next_bar(INTERVAL)
+        print(f"== {target.isoformat()} 캔들 시각 실행 ==")
 
         # 관측/의사결정
         try:
