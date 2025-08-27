@@ -1,130 +1,95 @@
-import os
-import csv
-import math
-from pathlib import Path
+import os, math, time
 from datetime import datetime
+from pathlib import Path
 
-import pyupbit
+# DRYRUN 모드에서는 실제 체결 대신 시뮬레이션 처리
+MODE = os.getenv("MODE", "DRYRUN").upper()
 
-from config import (
-    UPBIT_ACCESS_KEY,
-    UPBIT_SECRET_KEY,
-    TICKER,
-    MIN_ORDER_KRW,
-    TAKER_FEE,
-    LIVE_TRADE,
-    LOG_PATH,
-    TARGET_RISK,
-    SLIPPAGE,
-    BASE_KRW,
-    MODEL_PATH,
-    live_unlocked,
-)
+# 주문 하한(원)
+MIN_ORDER_KRW = int(os.getenv("MIN_ORDER_KRW", "5000"))
+MIN_ORDER_BUFFER = int(os.getenv("MIN_ORDER_BUFFER", "300"))  # 수수료/호가/슬리피지 버퍼
 
+LOG_DIR = Path(os.getenv("LOG_DIR", Path(__file__).parent / "logs"))
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+EXEC_LOG = LOG_DIR / "exec.log"
 
-def _ensure_dirs():
-    # logs/ 와 models/ 디렉터리 생성 (상대경로/빈 문자열 안전)
-    Path(LOG_PATH).parent.mkdir(parents=True, exist_ok=True)
-    Path(MODEL_PATH).parent.mkdir(parents=True, exist_ok=True)
-
-
-def _log(action, price, krw, coin, value, mode):
-    _ensure_dirs()
-    header = ["ts", "mode", "action", "price", "krw", "coin", "value"]
-    row = [
-        datetime.now().isoformat(timespec="seconds"),
-        mode,
-        action,
-        float(price),
-        float(krw),
-        float(coin),
-        float(value),
-    ]
-    file_exists = os.path.exists(LOG_PATH)
-    with open(LOG_PATH, "a", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
-        if not file_exists:
-            w.writerow(header)
-        w.writerow(row)
-
-
-class PaperWallet:
-    def __init__(self, base_krw=BASE_KRW):
-        self.krw = float(base_krw)
-        self.coin = 0.0
-
-    def value(self, price: float) -> float:
-        return self.krw + self.coin * float(price)
-
+def _log(*args):
+    msg = " ".join(map(str, args))
+    line = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}"
+    print(line)
+    with EXEC_LOG.open("a", encoding="utf-8") as f:
+        f.write(line + "\n")
 
 class UpbitExec:
-    def __init__(self):
-        self.mode = "LIVE" if live_unlocked() else "PAPER"
-        self.upbit = pyupbit.Upbit(UPBIT_ACCESS_KEY, UPBIT_SECRET_KEY) if self.mode == "LIVE" else None
-        self.wallet = None if self.mode == "LIVE" else PaperWallet()
+    def __init__(self, ticker="KRW-BTC"):
+        self.ticker = ticker
+        # 실제 구현에서는 upbit api client 세팅
+        self._krw = 100000 if MODE == "DRYRUN" else None  # 예시: DRYRUN 시 가상 KRW
+        self._coin = 0.0
 
-    def _current_price(self) -> float:
-        p = pyupbit.get_current_price(TICKER)
-        if p is None:
-            ohlc = pyupbit.get_ohlcv(TICKER, interval="minute1", count=1)
-            p = float(ohlc["close"].iloc[-1])
-        return float(p)
-
+    # ----- 잔고 -----
     def balances(self):
-        if self.mode == "LIVE":
-            balances = self.upbit.get_balances()
-            krw, coin = 0.0, 0.0
-            for b in balances:
-                if b.get("currency") == "KRW":
-                    krw = float(b.get("balance", 0))
-                if b.get("currency") == TICKER.split("-")[1]:
-                    coin = float(b.get("balance", 0))
-            return krw, coin
-        else:
-            return self.wallet.krw, self.wallet.coin
+        # 실제는 API 조회
+        krw = float(self._krw if self._krw is not None else 0.0)
+        coin = float(self._coin)
+        return krw, coin
 
-    def portfolio_value(self, price: float) -> float:
+    def portfolio_value(self, price: float):
         krw, coin = self.balances()
-        return float(krw) + float(coin) * float(price)
+        return krw + coin * price
 
-    def buy_fraction(self, fraction: float = TARGET_RISK):
-        price = self._current_price()
-        if self.mode == "LIVE":
-            krw, _ = self.balances()
-            amt = int(float(krw) * float(fraction))
-            if amt < MIN_ORDER_KRW:
-                return False, "KRW 부족/최소주문 미만"
-            resp = self.upbit.buy_market_order(TICKER, amt)
-            _log("BUY", price, *self.balances(), self.portfolio_value(price), self.mode)
-            return True, resp
-        else:
-            amt = self.wallet.krw * float(fraction)
-            if amt < MIN_ORDER_KRW:
-                return False, "KRW 부족"
-            qty = (amt * (1 - TAKER_FEE)) / (price * (1 + SLIPPAGE))
-            self.wallet.krw -= amt
-            self.wallet.coin += qty
-            _log("BUY", price, self.wallet.krw, self.wallet.coin, self.wallet.value(price), self.mode)
-            return True, {"status": "paper_ok"}
+    # ----- 내부 보조 -----
+    def _can_buy(self, price: float, krw_to_use: float):
+        # 수수료/슬리피지 감안 버퍼 제거 후도 업비트 하한 이상인지 체크
+        effective = krw_to_use - MIN_ORDER_BUFFER
+        return effective >= MIN_ORDER_KRW
 
-    def sell_fraction(self, fraction: float = TARGET_RISK):
-        price = self._current_price()
-        if self.mode == "LIVE":
-            _, coin = self.balances()
-            qty = max(0.0, float(coin) * float(fraction))
-            if qty <= 0:
-                return False, "코인 부족"
-            # 업비트 최소 수량 단위 보정 (보수적으로 소수 6자리)
-            qty = float(f"{qty:.6f}")
-            resp = self.upbit.sell_market_order(TICKER, qty)
-            _log("SELL", price, *self.balances(), self.portfolio_value(price), self.mode)
-            return True, resp
+    def _krw_to_buy_fraction(self, fraction=0.1):
+        krw, _ = self.balances()
+        use = krw * fraction
+        # 하한 미만이면 하한 맞춰줌 (가능하면)
+        if use < (MIN_ORDER_KRW + MIN_ORDER_BUFFER) and krw >= (MIN_ORDER_KRW + MIN_ORDER_BUFFER):
+            use = MIN_ORDER_KRW + MIN_ORDER_BUFFER
+        return max(0.0, math.floor(use))  # 정수 KRW
+
+    # ----- 주문 -----
+    def buy_fraction(self, price=None, fraction=0.1):
+        # 실제는 시세 조회
+        price = float(price or 0.0)
+        krw_to_use = self._krw_to_buy_fraction(fraction)
+        if not self._can_buy(price, krw_to_use):
+            _log("BUY blocked: KRW 부족/최소주문 미만", f"krw_to_use={krw_to_use}", f"min={MIN_ORDER_KRW}+buf{MIN_ORDER_BUFFER}")
+            return False, "KRW 부족/최소주문 미만"
+
+        # 체결 수량(수수료 보수적으로 제외)
+        fee_rate = 0.0005  # 예: 0.05%
+        qty = (krw_to_use * (1 - fee_rate)) / price
+        qty = max(0.0, qty)
+
+        if MODE == "DRYRUN":
+            self._krw -= krw_to_use
+            self._coin += qty
+            _log("DRYRUN BUY", f"krw={krw_to_use}", f"qty={qty:.8f}", f"price={price}")
+            return True, {"krw": krw_to_use, "qty": qty, "price": price}
         else:
-            qty = self.wallet.coin * float(fraction)
-            if qty <= 0:
-                return False, "코인 부족"
-            krw = qty * price * (1 - SLIPPAGE) * (1 - TAKER_FEE)
-            self.wallet.coin -= qty
-            self.wallet.krw += krw
-            _log("SELL", price, self.wallet.krw, self.wallet.coin, self.wallet.value(price), self.mode)
-            return True, {"status": "paper_ok"}
+            # TODO: 실거래 API 연동
+            _log("LIVE BUY (stub)", f"krw={krw_to_use}", f"qty~{qty:.8f}", f"price={price}")
+            return True, {"krw": krw_to_use, "qty": qty, "price": price}
+
+    def sell_all(self, price=None):
+        price = float(price or 0.0)
+        _, coin = self.balances()
+        if coin <= 0:
+            return False, "보유코인 없음"
+        fee_rate = 0.0005
+        krw_gain = coin * price * (1 - fee_rate)
+
+        if MODE == "DRYRUN":
+            self._coin = 0.0
+            self._krw += krw_gain
+            _log("DRYRUN SELL", f"coin->0", f"+krw~{int(krw_gain)}", f"price={price}")
+            return True, {"krw": int(krw_gain), "price": price}
+        else:
+            # TODO: 실거래 API 연동
+            _log("LIVE SELL (stub)", f"qty={coin:.8f}", f"price={price}")
+            return True, {"krw": int(krw_gain), "price": price}
