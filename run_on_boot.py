@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
-import os, sys, time, subprocess, traceback, importlib.util, importlib.machinery, types
+import os, sys, time, traceback, subprocess, importlib.util, importlib.machinery, types, threading, platform
 
-# ---------------- Logging (console + file) ----------------
+# ---------- paths & logging ----------
 def _base_dir():
     if getattr(sys, "frozen", False):
         return os.path.dirname(sys.executable)
@@ -31,7 +31,7 @@ def _tee(msg: str):
 
 log = _tee
 
-# ---------------- Env helpers ----------------
+# ---------- env ----------
 def _load_env():
     env_path = os.path.join(BASE_DIR, ".env")
     try:
@@ -40,6 +40,7 @@ def _load_env():
         log(f"dotenv loaded: {env_path}")
     except Exception as e:
         log(f"[WARN] dotenv load skipped: {e}")
+        # 수동 파싱 fallback
         if os.path.exists(env_path):
             try:
                 with open(env_path, "r", encoding="utf-8") as f:
@@ -48,19 +49,18 @@ def _load_env():
                         if not s or s.startswith("#") or "=" not in s:
                             continue
                         k, v = s.split("=", 1)
-                        k = k.strip()
-                        v = v.strip().strip('"').strip("'")
-                        os.environ.setdefault(k, v)
+                        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
                 log(f"dotenv manually parsed: {env_path}")
             except Exception as e2:
                 log(f"[WARN] dotenv manual parse failed: {e2}")
 
-def ENV(key, default=None, cast=str):
-    v = os.environ.get(key, default)
+def ENV(k, default=None, cast=str):
+    v = os.environ.get(k, default)
     if v is None: return None
     try: return cast(v)
     except Exception: return v
 
+# ---------- helpers ----------
 def _try_git_pull(repo_path: str):
     if not os.path.isdir(os.path.join(repo_path, ".git")):
         return
@@ -73,6 +73,18 @@ def _try_git_pull(repo_path: str):
         if r.stderr: log("git stderr: " + r.stderr.strip())
     except Exception as e:
         log(f"[WARN] git pull skipped: {e}")
+
+def _listdir(path: str):
+    try:
+        if not os.path.isdir(path):
+            log(f"[DIAG] listdir: not a dir -> {path}")
+            return
+        names = sorted(os.listdir(path))
+        head = ", ".join(names[:20])
+        more = "" if len(names) <= 20 else f" ...(+{len(names)-20})"
+        log(f"[DIAG] dir {path}: {head}{more}")
+    except Exception as e:
+        log(f"[DIAG] listdir error: {path} -> {repr(e)}")
 
 def _load_external(mod_name: str, py_path: str) -> types.ModuleType | None:
     if not os.path.isfile(py_path):
@@ -90,7 +102,7 @@ def _load_external(mod_name: str, py_path: str) -> types.ModuleType | None:
         traceback.print_exc()
         return None
 
-# fallback (빌드에 포함되어 있으면 사용)
+# 내장 fallback (빌드에 포함되어 있으면 사용)
 try:
     import train as _builtin_train
 except Exception:
@@ -107,11 +119,16 @@ def _resolve_external_dir() -> str:
 
 def _get_modules_once():
     ext_dir = _resolve_external_dir()
-    if ENV("REPO_AUTO_PULL", "1", str) in ("1", "true", "True", "TRUE"):
+    _listdir(BASE_DIR)
+    _listdir(ext_dir)
+
+    if ENV("REPO_AUTO_PULL", "1", str).lower() in ("1", "true", "yes"):
         _try_git_pull(ext_dir)
 
     train_path = os.path.join(ext_dir, "train.py")
     trade_path = os.path.join(ext_dir, "trade_hourly.py")
+    log(f"[DIAG] expect train: {train_path}  exists={os.path.isfile(train_path)}")
+    log(f"[DIAG] expect trade: {trade_path}  exists={os.path.isfile(trade_path)}")
 
     train_mod = _load_external("train", train_path)
     trade_mod = _load_external("trade_hourly", trade_path)
@@ -123,20 +140,16 @@ def _get_modules_once():
         log("fallback to builtin trade_hourly")
         trade_mod = _builtin_trade
 
-    return train_mod, trade_mod, ext_dir, train_path, trade_path
+    return train_mod, trade_mod, ext_dir
 
 def _wait_modules():
     backoff = 10
     while True:
-        train_mod, trade_mod, ext_dir, train_path, trade_path = _get_modules_once()
+        train_mod, trade_mod, ext_dir = _get_modules_once()
         log(f"resolved external_dir={ext_dir}")
-        log(f"exists(train.py)={os.path.isfile(train_path)} path={train_path}")
-        log(f"exists(trade_hourly.py)={os.path.isfile(trade_path)} path={trade_path}")
-
         if trade_mod is not None:
             return train_mod, trade_mod
-
-        log("[WAIT] trade_hourly.py가 없어 거래를 시작할 수 없습니다. 위 경로를 확인하세요. 10초 후 재시도.")
+        log("[WAIT] trade_hourly.py가 없어 거래를 시작할 수 없습니다. 경로/파일을 확인 후 10초 뒤 재시도.")
         time.sleep(backoff)
 
 def _run_train(train_mod):
@@ -155,6 +168,13 @@ def _run_train(train_mod):
         traceback.print_exc()
 
 def _run_trade_loop(trade_mod):
+    # 주기적 하트비트(트레이드 모듈이 조용할 때 대비)
+    def _hb():
+        while True:
+            time.sleep(30)
+            log("[HEARTBEAT] launcher alive")
+    threading.Thread(target=_hb, daemon=True).start()
+
     backoff = 5
     while True:
         try:
@@ -170,40 +190,38 @@ def _run_trade_loop(trade_mod):
             time.sleep(backoff)
             backoff = min(backoff * 2, 60)
             # 외부 파일 갱신 가능성 → 재로딩
-            _, trade_mod2, _, _, _ = _get_modules_once()
+            _, trade_mod2, _ = _get_modules_once()
             if trade_mod2 is not None:
                 trade_mod = trade_mod2
 
 def main():
-    # 배너
+    # 부팅 배너 + 시스템 진단
     log("===================================================")
     log("Upbit RL Bot (launcher) starting...")
-    log(f"BASE_DIR={BASE_DIR}")
+    log(f"PYTHON: {sys.version.split()[0]}  EXE={sys.executable if getattr(sys,'frozen',False) else 'script'}")
+    log(f"PLATFORM: {platform.platform()}")
+    log(f"CWD={os.getcwd()}  BASE_DIR={BASE_DIR}")
     log(f"LOG_FILE={LOG_FILE}")
     log("===================================================")
 
-    sys.path.insert(0, BASE_DIR)
     _load_env()
-
     mode = ENV("MODE", "DRYRUN", str).upper()
     ticker = ENV("TICKER", "KRW-BTC", str)
     interval = ENV("INTERVAL", "minute1", str)
     boot_wait = ENV("BOOT_WAIT_NETWORK", 5, int)
-    do_train = ENV("TRAIN_ON_BOOT", "1", str) in ("1", "true", "True", "TRUE")
+    do_train = ENV("TRAIN_ON_BOOT", "1", str).lower() in ("1","true","yes")
 
-    log(f"MODE={mode}  TICKER={ticker}  INTERVAL={interval}")
+    log(f"MODE={mode}  TICKER={ticker}  INTERVAL={interval}  TRAIN_ON_BOOT={do_train}")
     if boot_wait > 0:
         log(f"boot wait {boot_wait}s...")
         time.sleep(boot_wait)
 
-    # 모듈 준비(없으면 계속 대기하며 사용자에게 경로 안내)
+    sys.path.insert(0, BASE_DIR)
     train_mod, trade_mod = _wait_modules()
-
     if do_train:
         _run_train(train_mod)
     else:
         log("=== TRAIN SKIPPED ===")
-
     _run_trade_loop(trade_mod)
 
 if __name__ == "__main__":
