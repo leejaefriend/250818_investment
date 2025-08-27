@@ -1,43 +1,29 @@
 @echo off
-setlocal
+setlocal ENABLEDELAYEDEXPANSION
 cd /d %~dp0
 
-REM (선택) 가상환경 활성화
-REM call .venv\Scripts\activate
+if not exist .venv (
+  py -3 -m venv .venv
+)
 
-py -3 -m pip install -U pip wheel
-py -3 -m pip install pyinstaller python-dotenv
+call .venv\Scripts\activate
+python -m pip install -U pip wheel setuptools
 
-REM 필요한 러ntime 라이브러리(예: sb3, gymnasium, pyupbit 등)는
-REM 이미 프로젝트에 설치돼 있다고 가정. onefile이므로 collect-all로 끌어온다.
-REM 로컬 .py 파일들은 --add-data로 반드시 포함해야 함.
-REM 아래 목록에 네 프로젝트의 로컬 파이썬 파일들을 추가해라.
-set DATA_LIST=train.py;.^
-;trade_hourly.py;.^
-;upbit_exec.py;.^
-;features.py;.^
-;env_utils.py;.^
-;common.py;.
+REM 런처가 외부 py를 로드하므로 필수 러ntime만 설치
+pip install "numpy<2.0" pandas pyupbit python-dotenv gymnasium stable-baselines3 pyinstaller
+REM torch CPU가 필요하면 주석 해제:
+REM pip install --index-url https://download.pytorch.org/whl/cpu torch
 
-REM 위 목록에 없는 파일이 있으면 같은 형식으로 계속 추가:
-REM   ;파일명.py;.
+if exist build rd /s /q build
+if exist dist rd /s /q dist
+if exist bot.spec del /f /q bot.spec
 
-py -3 -m PyInstaller --clean --noconfirm ^
-  --onefile ^
-  --name bot ^
-  --console ^
-  --collect-all torch ^
-  --collect-all stable_baselines3 ^
-  --collect-all gymnasium ^
-  --collect-all pyupbit ^
-  --collect-all pandas ^
-  --collect-all numpy ^
-  --collect-all python_dotenv ^
-  %FORCE_CONSOLE% ^
-  --add-data "%DATA_LIST%" ^
-  run_on_boot.py
+pyinstaller -F -n bot --clean run_on_boot.py
 
-echo.
+if errorlevel 1 (
+  echo [ERROR] 빌드 실패
+  exit /b 1
+)
+
 echo [OK] 빌드 완료: dist\bot.exe
-echo 실행은 dist\bot.exe 옆에 .env가 있어야 함
-endlocal
+exit /b 0
