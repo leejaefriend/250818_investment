@@ -1,1 +1,6 @@
 .env
+models/
+dist/
+build/
+*.spec
+__pycache__/
