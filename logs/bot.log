@@ -1,0 +1,16 @@
+[2025-08-28 00:20:17] ==========================================================
+[2025-08-28 00:20:17] Upbit RL Bot (launcher) starting...
+[2025-08-28 00:20:17] BASE_DIR=D:\250818_investment
+[2025-08-28 00:20:17] LOG_FILE=D:\250818_investment\logs\bot.log
+[2025-08-28 00:20:17] ==========================================================
+[2025-08-28 00:20:17] dotenv loaded: D:\250818_investment\.env
+[2025-08-28 00:20:17] MODE=LiIVE  TICKER=KRW-BTC  INTERVAL=minute1
+[2025-08-28 00:20:17] boot wait 5s...
+[2025-08-28 00:20:22] resolved external_dir=D:\250818_investment
+[2025-08-28 00:20:22] exists(train.py)=True path=D:\250818_investment\train.py
+[2025-08-28 00:20:22] exists(trade_hourly.py)=True path=D:\250818_investment\trade_hourly.py
+[2025-08-28 00:20:22] === TRAIN START ===
+[2025-08-28 00:32:29] === TRAIN END ===
+[2025-08-28 00:32:29] === TRADE START ===
+[2025-08-28 00:32:29] [ERROR] load_external(trade_hourly) failed: SyntaxError('unterminated string literal (detected at line 183)', ('D:\\250818_investment\\upbit_exec.py', 183, 27, '            return False, f"API 오류:{e}', 183, 27))
+[2025-08-28 00:32:29] [WAIT] trade_hourly.py가 없어 거래를 시작할 수 없습니다. 10초 후 재시도.

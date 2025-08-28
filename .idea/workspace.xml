@@ -4,9 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="2a0d41ca-4e6e-42f7-9d4d-eaa0fbfb04e4" name="Changes" comment="250828_1516">
-      <change afterPath="$PROJECT_DIR$/bot.py" afterDir="false" />
+    <list default="true" id="2a0d41ca-4e6e-42f7-9d4d-eaa0fbfb04e4" name="Changes" comment="250828_2313">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/bot.py" beforeDir="false" afterPath="$PROJECT_DIR$/bot.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -240,7 +240,15 @@
       <option name="project" value="LOCAL" />
       <updated>1756388431157</updated>
     </task>
-    <option name="localTasksCounter" value="23" />
+    <task id="LOCAL-00023" summary="250828_2252">
+      <option name="closed" value="true" />
+      <created>1756389163239</created>
+      <option name="number" value="00023" />
+      <option name="presentableId" value="LOCAL-00023" />
+      <option name="project" value="LOCAL" />
+      <updated>1756389163239</updated>
+    </task>
+    <option name="localTasksCounter" value="24" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -259,6 +267,8 @@
     <MESSAGE value="250827_2252" />
     <MESSAGE value="250827_2300" />
     <MESSAGE value="250828_1516" />
-    <option name="LAST_COMMIT_MESSAGE" value="250828_1516" />
+    <MESSAGE value="250828_2252" />
+    <MESSAGE value="250828_2313" />
+    <option name="LAST_COMMIT_MESSAGE" value="250828_2313" />
   </component>
 </project>
