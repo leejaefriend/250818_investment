@@ -4,3 +4,28 @@ dist/
 build/
 *.spec
 __pycache__/
+
+# Python
+__pycache__/
+*.pyc
+
+# IDE
+.idea/
+
+# 빌드 산출물
+dist/
+build/
+*.spec
+
+# 모델, 체크포인트
+models/
+tb/
+
+# 자동 시작, 배포 파일
+register_autostart.bat
+unregister_autostart.bat
+bot.exe
+
+# 로그
+logs/
+EOF
